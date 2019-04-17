@@ -50,7 +50,7 @@ After that, simply execute `mvn javadoc:javadoc`. You will find the documentatio
 
 Map<String, Operators> operatorsMap = new HashMap<>();
 
-operatorsMap.put("or", Operators.NOT);
+operatorsMap.put("not", Operators.NOT);
 operatorsMap.put("and", Operators.AND);
 operatorsMap.put("or", Operators.OR);
 
