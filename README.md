@@ -10,7 +10,7 @@ You can add this library to your maven build using [JitPack](https://jitpack.io/
 
 Simply add the following to your `pom.xml`:
 
-```
+```xml
 <repositories>
 	<repository>
 		<id>jitpack.io</id>
@@ -19,7 +19,7 @@ Simply add the following to your `pom.xml`:
 </repositories>
 ```
 and
-```
+```xml
 <dependencies>
 	<dependency>
 		<groupId>com.github.Sallatik</groupId>
@@ -45,7 +45,7 @@ After that, simply execute `mvn javadoc:javadoc`. You will find the documentatio
 
 ## Usage
 
-```
+```java
 // define mappings for boolean operators
 
 Map<String, Operators> operatorsMap = new HashMap<>();
