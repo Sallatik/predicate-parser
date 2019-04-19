@@ -13,120 +13,125 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SimplePredicateParserTest {
 
-    private PredicateParser<Integer> parser;
+    private PredicateParser<String> parser;
 
     @BeforeAll
-    private void init() {
-
-        Map<String, Predicate<Integer>> predicateMap = new HashMap<>();
-
-        predicateMap.put("even", n -> n % 2 == 0);
-        predicateMap.put("positive", n -> n > 0);
-        predicateMap.put("negative", n -> n < 0);
-        predicateMap.put("zero", n -> n == 0);
-        predicateMap.put("ten", n -> n == 10);
+    void init() {
 
         Map<String, Operators> operatorsMap = new HashMap<>();
-
         operatorsMap.put("not", Operators.NOT);
-        operatorsMap.put("or", Operators.OR);
         operatorsMap.put("and", Operators.AND);
+        operatorsMap.put("or", Operators.OR);
 
-        parser = SimplePredicateParser.<Integer>builder()
-                .setPredicateMap(predicateMap)
-                .setOperatorMap(operatorsMap)
+        parser = SimplePredicateParser.<String>builder()
                 .setCasePolicy(CasePolicy.TO_LOWER_CASE)
+                .setOperatorMap(operatorsMap)
+                .setPredicateMapping(key -> string -> string.contains(key))
                 .build();
     }
 
     @Test
-    void single() {
+    void singleFilterTest() {
 
-        Predicate<Integer> predicate = parser.parse("even");
+        Predicate<String> predicate = parser.parse("cat");
 
-        assertTrue(predicate.test(2));
-        assertTrue(predicate.test(-4));
-        assertFalse(predicate.test(3));
-        assertFalse(predicate.test(-1));
+        assertTrue(predicate.test("cat"));
+        assertFalse(predicate.test("dog"));
     }
 
     @Test
-    void not() {
+    void orTest() {
 
-        Predicate<Integer> predicate =
-                parser.parse("not negative");
+        Predicate<String> predicate = parser.parse("cat or dog");
 
-        assertTrue(predicate.test(0));
-        assertTrue(predicate.test(32));
-        assertFalse(predicate.test(-12));
+        assertTrue(predicate.test("cat"));
+        assertTrue(predicate.test("dog"));
+        assertTrue(predicate.test("cat, dog"));
+
+        assertFalse(predicate.test("pigeon"));
     }
 
     @Test
-    void or() {
+    void andTest() {
 
-        Predicate<Integer> predicate =
-                parser.parse("negative or ten");
+        Predicate<String> predicate = parser.parse("cat and dog");
 
-        assertTrue(predicate.test(-32));
-        assertTrue(predicate.test(10));
+        assertTrue(predicate.test("cat, dog"));
 
-        assertFalse(predicate.test(32));
-        assertFalse(predicate.test(0));
+        assertFalse(predicate.test("cat"));
+        assertFalse(predicate.test("dog"));
+        assertFalse(predicate.test("pigeon"));
     }
 
     @Test
-    void and() {
+    void notTest() {
 
-        Predicate<Integer> predicate =
-                parser.parse("positive and even");
+        Predicate<String> predicate = parser.parse("not cat");
 
-        assertTrue(predicate.test(6));
-        assertTrue(predicate.test(2));
+        assertTrue(predicate.test("dog"));
 
-        assertFalse(predicate.test(0));
-        assertFalse(predicate.test(-2));
-        assertFalse(predicate.test(3));
-        assertFalse(predicate.test(-5));
+        assertFalse(predicate.test("cat"));
     }
 
     @Test
-    void twoOperators() {
+    void multipleOperatorsTest() {
 
-        Predicate<Integer> predicate =
-                parser.parse("positive and not ten");
+        Predicate<String> predicate = parser.parse("cat and dog and hamster");
 
-        assertTrue(predicate.test(3));
-        assertTrue(predicate.test(52));
+        assertTrue(predicate.test("cat, dog, hamster"));
 
-        assertFalse(predicate.test(0));
-        assertFalse(predicate.test(-23));
-        assertFalse(predicate.test(10));
+        assertFalse(predicate.test("dog"));
+        assertFalse(predicate.test("cat"));
+        assertFalse(predicate.test("hamster"));
+        assertFalse(predicate.test("dog, cat"));
+        assertFalse(predicate.test("cat, hamster"));
+        assertFalse(predicate.test("dog, hamster"));
     }
 
     @Test
-    void manyOperators() {
+    void percedenceTest() {
 
-        Predicate<Integer> predicate =
-                parser.parse("zero or negative and not even");
+        Predicate<String> predicate = parser.parse("cat or dog and hamster");
 
-        assertTrue(predicate.test(0));
-        assertTrue(predicate.test(-3));
+        assertTrue(predicate.test("cat"));
+        assertTrue(predicate.test("dog, hamster"));
+        assertTrue(predicate.test("cat, dog, hamster"));
+        assertTrue(predicate.test("cat, hamster"));
 
-        assertFalse(predicate.test(4));
-        assertFalse(predicate.test(5));
-        assertFalse(predicate.test(-4));
+        assertFalse(predicate.test("dog"));
+        assertFalse(predicate.test("hamster"));
     }
 
     @Test
-    void parenthesis() {
+    void parenthesesTest() {
 
-        Predicate<Integer> predicate =
-                parser.parse("(ten or negative) and even");
+        Predicate<String> predicate = parser.parse("(cat or dog) and hamster");
 
-        assertTrue(predicate.test(10));
-        assertTrue(predicate.test(-22));
+        assertTrue(predicate.test("cat, hamster"));
+        assertTrue(predicate.test("dog, hamster"));
+        assertTrue(predicate.test("cat, dog, hamster"));
 
-        assertFalse(predicate.test(5));
-        assertFalse(predicate.test(6));
+        assertFalse(predicate.test("cat"));
+        assertFalse(predicate.test("dog"));
+        assertFalse(predicate.test("hamster"));
+        assertFalse(predicate.test("cat, dog"));
+    }
+
+    @Test
+    void noOperandsTest() {
+
+        assertThrows(RuntimeException.class, () -> parser.parse("and or not"));
+    }
+
+    @Test
+    void unclosedParentheses() {
+
+        assertThrows(RuntimeException.class, () -> parser.parse("(cat and dog"));
+    }
+
+    @Test
+    void oneMoreTest() {
+
+        parser.parse("not(cat or dog)");
     }
 }
