@@ -10,7 +10,7 @@ import java.util.function.Predicate;
  * A word is simply any sequence of characters that does not itself contain whitespace or parentheses.<br>
  * Every word can either represent:
  * <ul>
- *     <li>One of the three boolean operators NOT, AND, and OR.</li>
+ *     <li>One of the three boolean operators NOT, AND, XOR, and OR.</li>
  *     <li>Elementary boolean function of the argument of generic type.</li>
  * </ul>
  * Words will be mapped to {@link Operators} constants or {@link Predicate} instances respectively using implementation-dependent mappings,

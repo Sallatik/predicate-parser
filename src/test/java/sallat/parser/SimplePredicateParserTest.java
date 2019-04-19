@@ -21,6 +21,7 @@ class SimplePredicateParserTest {
         Map<String, Operators> operatorsMap = new HashMap<>();
         operatorsMap.put("not", Operators.NOT);
         operatorsMap.put("and", Operators.AND);
+        operatorsMap.put("xor", Operators.XOR);
         operatorsMap.put("or", Operators.OR);
 
         parser = SimplePredicateParser.<String>builder()
@@ -133,5 +134,17 @@ class SimplePredicateParserTest {
     void oneMoreTest() {
 
         parser.parse("not(cat or dog)");
+    }
+
+    @Test
+    void xorTest() {
+
+        Predicate<String> predicate = parser.parse("cat xor dog");
+
+        assertTrue(predicate.test("cat"));
+        assertTrue(predicate.test("dog"));
+
+        assertFalse(predicate.test("dog, cat"));
+        assertFalse(predicate.test("hamster"));
     }
 }

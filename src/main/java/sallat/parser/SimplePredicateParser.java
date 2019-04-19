@@ -111,7 +111,7 @@ public class SimplePredicateParser<T> implements PredicateParser<T> {
 
     private Predicate<T> process(List<Token<T>> tokens) {
 
-        Operators [] operatorsInPrecedenceOrder = {NOT, AND, OR};
+        Operators [] operatorsInPrecedenceOrder = {NOT, AND, XOR, OR};
 
         for (Operators currentOperator : operatorsInPrecedenceOrder) {
 
@@ -132,6 +132,10 @@ public class SimplePredicateParser<T> implements PredicateParser<T> {
                             break;
                         case AND:
                             result = leftOperand.and(rightOperand);
+                            break;
+                        case XOR:
+                            result = target ->
+                                    leftOperand.test(target) != rightOperand.test(target);
                             break;
                         case OR:
                             result = leftOperand.or(rightOperand);

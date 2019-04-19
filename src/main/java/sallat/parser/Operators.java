@@ -8,5 +8,5 @@ import java.util.function.Predicate;
  */
 public enum Operators {
 
-    NOT, AND, OR
+    NOT, AND, OR, XOR
 }

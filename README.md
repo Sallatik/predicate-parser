@@ -53,6 +53,7 @@ Map<String, Operators> operatorsMap = new HashMap<>();
 operatorsMap.put("not", Operators.NOT);
 operatorsMap.put("and", Operators.AND);
 operatorsMap.put("or", Operators.OR);
+operatorsMap.put("xor", Operators.XOR)
 
 // define mappings for the elementary predicates
 
