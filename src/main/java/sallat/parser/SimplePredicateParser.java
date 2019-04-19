@@ -2,9 +2,11 @@ package sallat.parser;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import static sallat.parser.Operators.*;
+import static sallat.parser.Util.*;
 
 /**
  * Simple minimal implementation of a <code>PredicateParser</code>.<br>
@@ -13,42 +15,42 @@ import java.util.function.Predicate;
  */
 public class SimplePredicateParser<T> implements PredicateParser<T> {
 
-    private Function<String, Operators> stringToOperator;
-    private Function<String, Predicate<T>> stringToPredicate;
+    private Function<String, Operators> operatorMapping;
+    private Function<String, Predicate<T>> predicateMapping;
 
     private CasePolicy casePolicy;
+
+    @Override
+    public Predicate<T> parse(String expression) {
+
+        expression = prepare(expression);
+        List<Token<T>> tokens = toTokenList(expression);
+        return process(tokens);
+    }
 
     /*
     Resolve the String token to either Operators constant or Predicate, returning
     the result as Object.
-     */
-    private Object resolve(String token) {
+    */
+    private Token<T> toToken(String token) {
 
         try {
 
-            Operators operator = stringToOperator.apply(token);
+            Operators operator = operatorMapping.apply(token);
 
             if (operator != null)
-                return operator;
+                return new Token<>(operator);
 
-            Predicate<T> predicate = stringToPredicate.apply(token);
+            Predicate<T> predicate = predicateMapping.apply(token);
 
             if (predicate != null)
-                return predicate;
+                return new Token<>(predicate);
 
         } catch (Exception e) {
             throw new RuntimeException("Unknown token: " + token, e);
         }
 
         throw new RuntimeException("Unknown token: " + token);
-    }
-
-    @Override
-    public Predicate<T> parse(String expression) {
-
-        expression = prepare(expression);
-        List<Object> tokens = getTokens(expression);
-        return process(tokens);
     }
 
     /*
@@ -70,9 +72,9 @@ public class SimplePredicateParser<T> implements PredicateParser<T> {
         }
     }
 
-    private List<Object> getTokens(String expression) {
+    private List<Token<T>> toTokenList(String expression) {
 
-        List<Object> tokens = new ArrayList<>();
+        List<Token<T>> tokens = new ArrayList<>();
 
         int i = 0;
         while(i < expression.length()) {
@@ -88,7 +90,7 @@ public class SimplePredicateParser<T> implements PredicateParser<T> {
                 int matchingParenthesis = findMatchingParenthesis(expression, i);
                 String insideParentheses = expression.substring(i + 1, matchingParenthesis);
                 // recursively parse expression inside of parentheses to a Predicate token
-                tokens.add(parse(insideParentheses));
+                tokens.add(new Token<>(parse(insideParentheses)));
 
                 // jump to the first character after the matching parenthesis
                 i = matchingParenthesis + 1;
@@ -97,7 +99,7 @@ public class SimplePredicateParser<T> implements PredicateParser<T> {
 
                 int endOfWord = findEndOfWord(expression, i);
                 String word = expression.substring(i, endOfWord);
-                tokens.add(resolve(word));
+                tokens.add(toToken(word));
 
                 // jump to the first character after the word
                 i = endOfWord;
@@ -107,109 +109,71 @@ public class SimplePredicateParser<T> implements PredicateParser<T> {
         return tokens;
     }
 
-    /*
-    Find index of the first whitespace character
-    or left parenthesis or the end of String
-    after the specified begin index.
-     */
-    private int findEndOfWord(String str, int beginIndex) {
+    private Predicate<T> process(List<Token<T>> tokens) {
 
-        for (int i = beginIndex; i < str.length(); i++) {
+        Operators [] operatorsInPrecedenceOrder = {NOT, AND, OR};
 
-            char ch = str.charAt(i);
+        for (Operators currentOperator : operatorsInPrecedenceOrder) {
 
-            if (ch == '(' || Character.isWhitespace(ch))
-                return i;
+            for (int i = 0; i < tokens.size(); i++) {
+
+                Token<T> token = tokens.get(i);
+                if (token.isOperator() && token.getOperator() == currentOperator) {
+
+                    Predicate<T> rightOperand = getPredicateAtIndex(tokens, i + 1);
+                    Predicate<T> leftOperand = currentOperator == NOT ? null : getPredicateAtIndex(tokens, i - 1);
+
+                    Predicate<T> result = null;
+
+                    switch (currentOperator) {
+
+                        case NOT:
+                            result = rightOperand.negate();
+                            break;
+                        case AND:
+                            result = leftOperand.and(rightOperand);
+                            break;
+                        case OR:
+                            result = leftOperand.or(rightOperand);
+                            break;
+                    }
+
+                    // remove operator token
+                    tokens.remove(i);
+                    // remove right operand token
+                    tokens.remove(i);
+                    // insert result token in place of the operator
+                    tokens.add(i, new Token<>(result));
+
+                    if (currentOperator != NOT)
+                        // remove left operand token
+                        tokens.remove(--i);
+                }
+            }
         }
 
-        return str.length();
-    }
-
-    /*
-    Find the index of matching right parenthesis
-    given the index of left parenthesis
-     */
-    private int findMatchingParenthesis(String str, int beginIndex) {
-
-        int count = 0;
-
-        for (int i = beginIndex; i < str.length(); i++) {
-
-            if (str.charAt(i) == '(')
-                count++;
-
-            else if (str.charAt(i) == ')')
-                count--;
-
-            if (count == 0)
-                return i;
-        }
-
-        throw new RuntimeException("Unclosed parenthesis on index " + beginIndex);
-    }
-
-    private Predicate<T> process(List<Object> tokens) {
-
-        for (int i = 0; i < tokens.size(); i++)
-            if (Operators.NOT.equals(tokens.get(i))) {
-
-                if (i + 1 >= tokens.size())
-                    throw new RuntimeException("Operand expected");
-
-                Object operand = tokens.get(i + 1);
-                if (! (operand instanceof Predicate))
-                    throw new RuntimeException("Illegal operand for NOT: " + operand);
-
-                Predicate<T> result = ((Predicate<T>) operand).negate();
-
-                tokens.remove(i);
-                tokens.remove(i);
-                tokens.add(i, result);
-            }
-
-        for (int i = 0; i < tokens.size(); i++)
-            if (Operators.AND.equals(tokens.get(i))) {
-                compute(tokens, i, Predicate::and);
-                i--;
-            }
-
-        for (int i = 0; i < tokens.size(); i++)
-            if (Operators.OR.equals(tokens.get(i))) {
-                compute(tokens, i, Predicate::or);
-                i--;
-            }
-
-        if (tokens.size() == 1)
-            return (Predicate<T>) tokens.get(0);
+        if (tokens.size() == 1 && tokens.get(0).isPredicate())
+            return tokens.get(0).getPredicate();
         else
             throw new RuntimeException("Unexpected tokens: " + tokens);
     }
 
-    private void compute(List<Object> tokens, int index,
-                         BiFunction<Predicate<T>, Predicate<T>, Predicate<T>> operator) {
+    private Predicate<T> getPredicateAtIndex(List<Token<T>> tokenList, int index) {
 
-        if (index - 1 < 0 || index + 1 >= tokens.size())
+        if (index < 0 || index >= tokenList.size())
             throw new RuntimeException("Operand expected");
 
-        Object operand1 = tokens.get(index - 1);
-        Object operand2 = tokens.get(index + 1);
-
-        if (!(operand1 instanceof Predicate && operand2 instanceof Predicate))
-            throw new RuntimeException("Illegal operands: " + operand1 + ", " + operand2);
-
-        Predicate<T> result = operator.apply((Predicate<T>) operand1, (Predicate<T>) operand2);
-
-        tokens.remove(index - 1);
-        tokens.remove(index - 1);
-        tokens.remove(index - 1);
-
-        tokens.add(index - 1, result);
+        Token<T> token = tokenList.get(index);
+        if (token.isPredicate())
+            return token.getPredicate();
+        else
+            throw new RuntimeException("Predicate expected but operator found: " + token);
     }
 
-    SimplePredicateParser(Function<String, Operators> stringToOperator, Function<String, Predicate<T>> stringToPredicate, CasePolicy casePolicy) {
+    SimplePredicateParser(Function<String, Operators> operatorMapping, Function<String, Predicate<T>> predicateMapping, CasePolicy casePolicy) {
 
-        this.stringToOperator = stringToOperator;
-        this.stringToPredicate = stringToPredicate;
+        this.operatorMapping = operatorMapping;
+        this.predicateMapping = predicateMapping;
         this.casePolicy = casePolicy;
     }
 
